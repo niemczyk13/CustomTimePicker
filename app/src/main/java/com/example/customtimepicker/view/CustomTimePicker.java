@@ -278,6 +278,8 @@ public class CustomTimePicker extends TimePicker {
         radialPicker.setOnTouchListener((view, motionEvent) -> {
             if (motionEvent.getAction() == MotionEvent.ACTION_UP) {
                 clockFaceClickListener.onClick();
+                editText.setText("");
+                editText.selectAll();
             }
             return false;
         });
