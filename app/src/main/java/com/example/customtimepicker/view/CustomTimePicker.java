@@ -2,6 +2,7 @@ package com.example.customtimepicker.view;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.res.Resources;
 import android.os.Build;
 import android.text.Editable;
 import android.text.InputType;
@@ -32,19 +33,23 @@ public class CustomTimePicker extends TimePicker {
     private TextView timePickerMinute;
     private EditText editText;
     private ImageButton keyboardImageButton;
-    private InputMethodManager inputMethodManager;
     private KeyboardInputListener keyboardInputListener;
-    private ClockFaceClickListener clockFaceClickListener;
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
     public CustomTimePicker(Context context) {
         super(context);
         setProperties();
     }
-    @RequiresApi(api = Build.VERSION_CODES.M)
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
     public CustomTimePicker(Context context, AttributeSet attrs) {
         super(context, attrs);
         setProperties();
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private void setProperties() {
+        super.setIs24HourView(true);
         getViewsFromTimePicker();
         hideDefaultKeyboardImageButton();
         showNewKeyboardImageButton();
@@ -55,56 +60,82 @@ public class CustomTimePicker extends TimePicker {
         setTimePickerMinuteOnTouchListener();
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    private void setTimePickerHourOnTouchListener() {
-        timePickerHour.setOnTouchListener(new OnTouchListener() {
-            @RequiresApi(api = Build.VERSION_CODES.M)
-            @Override
-            public boolean onTouch(View view, MotionEvent motionEvent) {
-                String minute = timePickerMinute.getText().toString();
-                if (minute.isEmpty()) {
-                    CustomTimePicker.super.setMinute(CustomTimePicker.super.getMinute());
-                } else if (minute.length() == 1) {
-                    CustomTimePicker.super.setMinute(Integer.parseInt(timePickerMinute.getText().toString()));
-                    if (keyboardInputListener != null)
-                        keyboardInputListener.onChange();
-                }
+    private void getViewsFromTimePicker() {
+        radialPicker = (View) getViewFromTimePicker("radial_picker");
+        timePickerHour = (TextView) getViewFromTimePicker("hours");
+        timePickerMinute = (TextView) getViewFromTimePicker("minutes");
+    }
 
-                editText.selectAll();
+    private Object getViewFromTimePicker(String name) {
+        super.getContext().getResources();
+        int id = Resources.getSystem().getIdentifier(name, "id", "android");
+        return super.findViewById(id);
+    }
 
-                return false;
-            }
+    private void hideDefaultKeyboardImageButton() {
+        View imageButton = (View) getViewFromTimePicker("toggle_mode");
+        imageButton.setVisibility(View.GONE);
+    }
+
+    private void showNewKeyboardImageButton() {
+        RelativeLayout timeHeader = (RelativeLayout) getViewFromTimePicker("time_header");
+        LinearLayout linearLayout = createLinearLayoutToTimeHeader();
+        keyboardImageButton = createKeyboardImageButton();
+        linearLayout.addView(keyboardImageButton);
+        timeHeader.addView(linearLayout);
+    }
+
+    private LinearLayout createLinearLayoutToTimeHeader() {
+        LinearLayout linearLayout = new LinearLayout(super.getContext());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        linearLayout.setLayoutParams(params);
+        linearLayout.setGravity(Gravity.END);
+        return linearLayout;
+    }
+
+    private ImageButton createKeyboardImageButton() {
+        ImageButton button = new ImageButton(super.getContext());
+        button.setImageResource(R.drawable.ic_baseline_keyboard_24);
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 60, 10, 0);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private void createEditText() {
+        editText = new EditText(super.getContext());
+        editText.setWidth(1);
+        editText.setHeight(1);
+        editText.setTextSize(1);
+        editText.setMaxLines(1);
+        editText.setMaxEms(2);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(1,1);
+        editText.setLayoutParams(params);
+        editText.requestFocus();
+        editText.setKeyListener(DigitsKeyListener.getInstance("0123456789"));
+        editText.setRawInputType(InputType.TYPE_CLASS_NUMBER);
+        RelativeLayout timeHeader = (RelativeLayout) getViewFromTimePicker("time_header");
+        timeHeader.addView(editText);
+    }
+
+    private void setOnClickListenerToKeyboardImageButton() {
+        keyboardImageButton.setOnClickListener(view -> {
+            editText.setActivated(true);
+            editText.requestFocus();
+            showKeyboard();
         });
     }
-    @SuppressLint("ClickableViewAccessibility")
-    private void setTimePickerMinuteOnTouchListener() {
-        timePickerMinute.setOnTouchListener(new OnTouchListener() {
-            @RequiresApi(api = Build.VERSION_CODES.M)
-            @Override
-            public boolean onTouch(View view, MotionEvent motionEvent) {
-                String hour = timePickerHour.getText().toString();
-                if (hour.isEmpty()) {
-                    CustomTimePicker.super.setHour(CustomTimePicker.super.getHour());
-                } else if (hour.length() == 1) {
-                    CustomTimePicker.super.setHour(Integer.parseInt(timePickerHour.getText().toString()));
-                    if (keyboardInputListener != null)
-                        keyboardInputListener.onChange();
-                }
 
-                editText.selectAll();
-
-                return false;
-            }
-        });
+    private void showKeyboard() {
+        InputMethodManager inputMethodManager = (InputMethodManager) super.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputMethodManager.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     private void addEditTextChangeListener() {
-        //TODO
         editText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {}
-
             @Override
             public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {}
 
@@ -130,6 +161,31 @@ public class CustomTimePicker extends TimePicker {
         }
     }
 
+    private boolean timeIsIncomplete(String result) {
+        return result.length() == 1;
+    }
+
+    private void updateHourDataForIncompleteTime(String result) {
+        if (notEquals(timePickerHour, editText)) {
+            updateChangeFields(timePickerHour, editText, result);
+        }
+        editText.setSelection(1);
+    }
+
+    private boolean notEquals(TextView timePickerHour, EditText editText) {
+        return !timePickerHour.getText().toString().equals(editText.getText().toString());
+    }
+
+    private void updateChangeFields(TextView tv, EditText et, String result) {
+        if (!result.equals(et.getText().toString())) {
+            et.selectAll();
+            et.setText(result);
+        }
+        if (!result.equals(tv.getText().toString())) {
+            tv.setText(result);
+        }
+    }
+
     private boolean timeIsComplete(String result) {
         return result.length() == 2;
     }
@@ -145,31 +201,6 @@ public class CustomTimePicker extends TimePicker {
             keyboardInputListener.onChange();
     }
 
-    private void updateHourDataForIncompleteTime(String result) {
-        if (notEquals(timePickerHour, editText)) {
-            updateChangeFields(timePickerHour, editText, result);
-        }
-        editText.setSelection(1);
-    }
-
-    private void updateChangeFields(TextView tv, EditText et, String result) {
-        if (!result.equals(et.getText().toString())) {
-            et.selectAll();
-            et.setText(result);
-        }
-        if (!result.equals(tv.getText().toString())) {
-            tv.setText(result);
-        }
-    }
-
-    private boolean notEquals(TextView timePickerHour, EditText editText) {
-        return !timePickerHour.getText().toString().equals(editText.getText().toString());
-    }
-
-    private boolean timeIsIncomplete(String result) {
-        return result.length() == 1;
-    }
-
     @RequiresApi(api = Build.VERSION_CODES.M)
     private void introducedMinute() {
         String minute = editText.getText().toString();
@@ -181,6 +212,13 @@ public class CustomTimePicker extends TimePicker {
         }
     }
 
+    private void updateMinuteDataForIncompleteTime(String result) {
+        if (notEquals(timePickerMinute, editText)) {
+            updateChangeFields(timePickerMinute, editText, result);
+        }
+        editText.setSelection(1);
+    }
+
     @RequiresApi(api = Build.VERSION_CODES.M)
     private void updateMinuteDataForCompleteTime(String result) {
         CustomTimePicker.super.setMinute(Integer.parseInt(result));
@@ -189,87 +227,38 @@ public class CustomTimePicker extends TimePicker {
             keyboardInputListener.onChange();
     }
 
-    private void updateMinuteDataForIncompleteTime(String result) {
-        if (notEquals(timePickerMinute, editText)) {
-            updateChangeFields(timePickerMinute, editText, result);
-        }
-        editText.setSelection(1);
-    }
-
-    private void setOnClickListenerToKeyboardImageButton() {
-        keyboardImageButton.setOnClickListener(view -> {
-            editText.setActivated(true);
-            editText.requestFocus();
-            showKeyboard();
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    @SuppressLint("ClickableViewAccessibility")
+    private void setTimePickerHourOnTouchListener() {
+        timePickerHour.setOnTouchListener((view, motionEvent) -> {
+            String minute = timePickerMinute.getText().toString();
+            if (minute.isEmpty()) {
+                CustomTimePicker.super.setMinute(CustomTimePicker.super.getMinute());
+            } else if (minute.length() == 1) {
+                CustomTimePicker.super.setMinute(Integer.parseInt(timePickerMinute.getText().toString()));
+                if (keyboardInputListener != null)
+                    keyboardInputListener.onChange();
+            }
+            editText.selectAll();
+            return false;
         });
     }
 
-    private void showKeyboard() {
-        inputMethodManager = (InputMethodManager) super.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        inputMethodManager.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
-    }
-
-    private void createEditText() {
-        editText = new EditText(super.getContext());
-        editText.setWidth(1);
-        editText.setHeight(1);
-        editText.setTextSize(1);
-        editText.setMaxLines(1);
-        editText.setMaxEms(2);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(1,1);
-        editText.setLayoutParams(params);
-        editText.requestFocus();
-        editText.setKeyListener(DigitsKeyListener.getInstance("0123456789"));
-        editText.setRawInputType(InputType.TYPE_CLASS_NUMBER);
-        RelativeLayout timeHeader = (RelativeLayout) getViewFromTimePicker("time_header");
-        timeHeader.addView(editText);
-    }
-
-    private void showNewKeyboardImageButton() {
-        RelativeLayout timeHeader = (RelativeLayout) getViewFromTimePicker("time_header");
-        LinearLayout linearLayout = createLinearLayoutToTimeHeader();
-        keyboardImageButton = createKeyboardImageButton();
-        linearLayout.addView(keyboardImageButton);
-        timeHeader.addView(linearLayout);
-    }
-
-    private ImageButton createKeyboardImageButton() {
-        ImageButton button = new ImageButton(super.getContext());
-        button.setImageResource(R.drawable.ic_baseline_keyboard_24);
-        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.setMargins(0, 60, 10, 0);
-        button.setLayoutParams(params);
-        return button;
-    }
-
-    private LinearLayout createLinearLayoutToTimeHeader() {
-        LinearLayout linearLayout = new LinearLayout(super.getContext());
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        linearLayout.setLayoutParams(params);
-        linearLayout.setGravity(Gravity.RIGHT);
-        return linearLayout;
-    }
-
-    private void hideDefaultKeyboardImageButton() {
-        View imageButton = (View) getViewFromTimePicker("toggle_mode");
-        imageButton.setVisibility(View.GONE);
-    }
-
-    private void getViewsFromTimePicker() {
-        radialPicker = (View) getViewFromTimePicker("radial_picker");
-        timePickerHour = (TextView) getViewFromTimePicker("hours");
-        timePickerMinute = (TextView) getViewFromTimePicker("minutes");
-
-    }
-
-    private Object getViewFromTimePicker(String name) {
-        int id = super.getContext().getResources().getSystem().getIdentifier(name, "id", "android");
-        return super.findViewById(id);
-    }
-
-    private void setProperties() {
-        super.setIs24HourView(true);
-
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    @SuppressLint("ClickableViewAccessibility")
+    private void setTimePickerMinuteOnTouchListener() {
+        timePickerMinute.setOnTouchListener((view, motionEvent) -> {
+            String hour = timePickerHour.getText().toString();
+            if (hour.isEmpty()) {
+                CustomTimePicker.super.setHour(CustomTimePicker.super.getHour());
+            } else if (timeIsIncomplete(hour)) {
+                CustomTimePicker.super.setHour(Integer.parseInt(timePickerHour.getText().toString()));
+                if (keyboardInputListener != null)
+                    keyboardInputListener.onChange();
+            }
+            editText.selectAll();
+            return false;
+        });
     }
 
     public int getHour() {
@@ -286,10 +275,9 @@ public class CustomTimePicker extends TimePicker {
 
     @SuppressLint("ClickableViewAccessibility")
     public void addClockFaceClickListener(ClockFaceClickListener clockFaceClickListener) {
-        this.clockFaceClickListener = clockFaceClickListener;
         radialPicker.setOnTouchListener((view, motionEvent) -> {
-            switch (motionEvent.getAction()) {
-                case MotionEvent.ACTION_UP: clockFaceClickListener.onClick();
+            if (motionEvent.getAction() == MotionEvent.ACTION_UP) {
+                clockFaceClickListener.onClick();
             }
             return false;
         });
